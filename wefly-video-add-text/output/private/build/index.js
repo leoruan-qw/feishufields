@@ -1,0 +1,177 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const block_basekit_server_api_1 = require("@lark-opdev/block-basekit-server-api");
+const feishuDm = ['feishu.cn', 'feishucdn.com', 'larksuitecdn.com', 'larksuite.com'];
+const { t } = block_basekit_server_api_1.field;
+// 通过addDomainList添加请求接口的域名，不可写多个addDomainList，否则会被覆盖
+block_basekit_server_api_1.basekit.addDomainList([...feishuDm, 'wefly-test.52tt.com', 'wefly-lanyue-test.52tt.com', 'wefly-lanyue.52tt.com', '0.0.0.0']);
+block_basekit_server_api_1.basekit.addField({
+    // 定义捷径的i18n语言资源
+    i18n: {
+        messages: {
+            'zh-CN': {},
+            'en-US': {},
+            'ja-JP': {},
+        }
+    },
+    // 定义捷径的入参
+    formItems: [
+        {
+            key: 'token',
+            label: 'API KEY',
+            component: block_basekit_server_api_1.FieldComponent.Input,
+            props: {
+                supportType: [block_basekit_server_api_1.FieldType.Text],
+            },
+            validator: {
+                required: true,
+            },
+        },
+        {
+            key: 'video_file',
+            label: '视频',
+            component: block_basekit_server_api_1.FieldComponent.FieldSelect,
+            props: {
+                supportType: [block_basekit_server_api_1.FieldType.Attachment]
+            },
+            validator: {
+                required: true,
+            }
+        },
+        {
+            key: 'copywriting',
+            label: '文案',
+            component: block_basekit_server_api_1.FieldComponent.Input,
+            props: {
+                supportType: [block_basekit_server_api_1.FieldType.Text]
+            },
+            validator: {
+                required: true,
+            }
+        },
+        {
+            key: 'copywriting_position',
+            label: '文案位置',
+            component: block_basekit_server_api_1.FieldComponent.SingleSelect,
+            props: {
+                supportType: [block_basekit_server_api_1.FieldType.Number],
+                options: [
+                    { label: '1', value: "152,82" },
+                    { label: '2', value: "355,82" },
+                    { label: '3', value: "558,82" },
+                    { label: '4', value: "152,268" },
+                    { label: '5', value: "355,268" },
+                    { label: '6', value: "558,268" },
+                    { label: '7', value: "152,609" },
+                    { label: '8', value: "355,609" },
+                    { label: '9', value: "558,609" },
+                    { label: '10', value: "152,912" },
+                    { label: '11', value: "355,912" },
+                    { label: '12', value: "558,912" },
+                    { label: '13', value: "355,1092" },
+                ]
+            },
+            validator: {
+                required: true,
+            },
+            tooltips: [
+                {
+                    type: 'link',
+                    text: '文案位置参考图示',
+                    link: 'blob:https://q9jvw0u5f5.feishu.cn/94e82af0-2db3-488a-9422-6768f21e71bb',
+                },
+            ]
+        },
+        {
+            key: 'align',
+            label: '对齐方式',
+            component: block_basekit_server_api_1.FieldComponent.Radio,
+            defaultValue: { label: '居中对齐', value: 'center' },
+            props: {
+                options: [
+                    { label: '左对齐', value: 'left' },
+                    { label: '居中对齐', value: 'center' },
+                    { label: '右对齐', value: 'right' },
+                ]
+            },
+            validator: {
+                required: true,
+            }
+        }
+    ],
+    // 定义捷径的返回结果类型
+    resultType: {
+        type: block_basekit_server_api_1.FieldType.Attachment
+    },
+    // formItemParams 为运行时传入的字段参数，对应字段配置里的 formItems （如引用的依赖字段）
+    execute: async (formItemParams, context) => {
+        const { token = '', video_file = '', copywriting = '', copywriting_position = "152,82", align = { label: '居中对齐', value: 'center' } } = formItemParams;
+        /** 为方便查看日志，使用此方法替代console.log */
+        const debugLog = (arg) => {
+            // @ts-ignore
+        };
+        try {
+            if (!video_file || !copywriting) {
+                return {
+                    code: block_basekit_server_api_1.FieldCode.Success,
+                    data: {
+                        'id': '-',
+                        'output': '',
+                        'errorMessage': '视频字段或文案不能为空'
+                    }
+                };
+            }
+            const body = JSON.stringify({
+                "token": token,
+                "video_url": video_file,
+                "copywriting": copywriting,
+                "copywriting_position": copywriting_position,
+                "align": align
+            });
+            console.log('body', body);
+            const resText = await context.fetch('https://wefly-lanyue.52tt.com/lanyue/api/video/superposition_text', {
+                // const resText: any = await context.fetch('http://wefly-test.52tt.com/lanyue/push/video/superposition_text', { // 已经在addDomainList中添加为白名单的请求
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    token,
+                },
+                body,
+            }).then(res => res.text()); // 不要直接res.json()，这非常容易报错，且难以排查
+            const res = JSON.parse(resText);
+            console.log("res", res);
+            let message = '';
+            if (res.code != 0 && res.code != 200) {
+                message = res["error_msg"];
+                debugLog({
+                    '===1 解析后的结果': message
+                });
+                throw new Error(res.message || '接口异常');
+            }
+            return {
+                code: block_basekit_server_api_1.FieldCode.Success,
+                data: [
+                    {
+                        "name": res["data"]['workflow_result']["task_id"] + ".mp4",
+                        "content": res["data"]['workflow_result']['result'],
+                        "contentType": "attachment/url",
+                    },
+                ],
+            };
+        }
+        catch (e) {
+            debugLog({
+                '===999 异常错误': String(e)
+            });
+            /**
+             * 返回非 Success 的错误码，将会在单元格上显示报错，请勿返回msg、message之类的字段，它们并不会起作用。
+             * 对于未知错误，请直接返回 FieldCode.Error，然后通过查日志来排查错误原因。
+             */
+            return {
+                code: block_basekit_server_api_1.FieldCode.Error,
+            };
+        }
+    },
+});
+exports.default = block_basekit_server_api_1.basekit;
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiaW5kZXguanMiLCJzb3VyY2VSb290IjoiIiwic291cmNlcyI6WyIuLi8uLi8uLi9zcmMvaW5kZXgudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6Ijs7QUFBQSxtRkFBMkc7QUFHM0csTUFBTSxRQUFRLEdBQUcsQ0FBQyxXQUFXLEVBQUUsZUFBZSxFQUFFLGtCQUFrQixFQUFFLGVBQWUsQ0FBQyxDQUFDO0FBQ3JGLE1BQU0sRUFBRSxDQUFDLEVBQUUsR0FBRyxnQ0FBSyxDQUFDO0FBQ3BCLHFEQUFxRDtBQUNyRCxrQ0FBTyxDQUFDLGFBQWEsQ0FBQyxDQUFDLEdBQUcsUUFBUSxFQUFFLHFCQUFxQixFQUFFLDRCQUE0QixFQUFFLHVCQUF1QixFQUFFLFNBQVMsQ0FBQyxDQUFDLENBQUM7QUFFOUgsa0NBQU8sQ0FBQyxRQUFRLENBQUM7SUFDZixnQkFBZ0I7SUFDaEIsSUFBSSxFQUFFO1FBQ0osUUFBUSxFQUFFO1lBQ1IsT0FBTyxFQUFFLEVBQ1I7WUFDRCxPQUFPLEVBQUUsRUFDUjtZQUNELE9BQU8sRUFBRSxFQUNSO1NBQ0Y7S0FDRjtJQUNELFVBQVU7SUFDVixTQUFTLEVBQUU7UUFDVDtZQUNFLEdBQUcsRUFBRSxPQUFPO1lBQ1osS0FBSyxFQUFFLFNBQVM7WUFDaEIsU0FBUyxFQUFFLHlDQUFjLENBQUMsS0FBSztZQUMvQixLQUFLLEVBQUU7Z0JBQ0wsV0FBVyxFQUFFLENBQUMsb0NBQVMsQ0FBQyxJQUFJLENBQUM7YUFDOUI7WUFDRCxTQUFTLEVBQUU7Z0JBQ1QsUUFBUSxFQUFFLElBQUk7YUFDZjtTQUNGO1FBQ0Q7WUFDRSxHQUFHLEVBQUUsWUFBWTtZQUNqQixLQUFLLEVBQUUsSUFBSTtZQUNYLFNBQVMsRUFBRSx5Q0FBYyxDQUFDLFdBQVc7WUFDckMsS0FBSyxFQUFFO2dCQUNMLFdBQVcsRUFBRSxDQUFDLG9DQUFTLENBQUMsVUFBVSxDQUFDO2FBQ3BDO1lBQ0QsU0FBUyxFQUFFO2dCQUNULFFBQVEsRUFBRSxJQUFJO2FBQ2Y7U0FDRjtRQUNEO1lBQ0Us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
